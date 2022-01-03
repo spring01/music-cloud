@@ -7,12 +7,9 @@ const {
     buildGetNextItem
 } = require('./builders/');
 
-const { find, findByTrackId } = require('./persistence/')
+const { find, findByTrackId, findByArtistAlbumTitle } = require('./persistence/')
 
 exports.handler = async (event) => {
-
-    console.log(JSON.stringify(event));
-
     switch (event.header.name) {
         case 'GetPlayableContent':
             return handleGetPlayableContent(event);
@@ -57,7 +54,7 @@ const handleGetPlayableContent = async (event) => {
 
 
 const handleInitiate = async (event) => {
-    let item = await findByTrackId(event.payload.contentId);
+    let item = await findByArtistAlbumTitle(event.payload.contentId);
     if (item) {
         return buildInitiateResponse(event, item);
     } else {

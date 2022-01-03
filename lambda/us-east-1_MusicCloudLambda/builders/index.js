@@ -1,5 +1,11 @@
 const { hash } = require('../utils/');
 
+function getItemId(item) {
+    const artist = item.artist;
+    const album_title = item.album_title;
+    return JSON.stringify({artist, album_title});
+}
+
 module.exports = {
     buildNotFound: (event) => {
         return {
@@ -26,7 +32,7 @@ module.exports = {
             },
             "payload": {
                 "content": {
-                    "id": item.id,
+                    "id": getItemId(item),
                     "actions": {
                         "playable": true,
                         "browsable": false
@@ -36,18 +42,18 @@ module.exports = {
                         "name": {
                             "speech": {
                                 "type": "PLAIN_TEXT",
-                                "text": item.metadata.common.title
+                                "text": item.title
                             },
-                            "display": item.metadata.common.title
+                            "display": item.title
                         },
-                        "authors": item.metadata.common.artist ? [
+                        "authors": item.artist ? [
                             {
                                 "name": {
                                     "speech": {
                                         "type": "PLAIN_TEXT",
-                                        "text": item.metadata.common.artist
+                                        "text": item.artist
                                     },
-                                    "display": item.metadata.common.artist
+                                    "display": item.artist
                                 }
                             }
                         ] : {},
@@ -76,7 +82,7 @@ module.exports = {
                         }
                     },
                     "firstItem": {
-                        "id": item.id,
+                        "id": getItemId(item),
                         "playbackInfo": {
                             "type": "DEFAULT"
                         },
@@ -85,18 +91,18 @@ module.exports = {
                             "name": {
                                 "speech": {
                                     "type": "PLAIN_TEXT",
-                                    "text": item.metadata.common.title
+                                    "text": item.title
                                 },
-                                "display": item.metadata.common.title
+                                "display": item.title
                             },
-                            "authors": item.metadata.common.artist ? [
+                            "authors": item.artist ? [
                                 {
                                     "name": {
                                         "speech": {
                                             "type": "PLAIN_TEXT",
-                                            "text": item.metadata.common.artist
+                                            "text": item.artist
                                         },
-                                        "display": item.metadata.common.artist
+                                        "display": item.artist
                                     }
                                 }
                             ] : {},
@@ -118,8 +124,8 @@ module.exports = {
                             "feedbackEnabled": false
                         },
                         "stream": {
-                            "id": item.id,
-                            "uri": item.dropboxMetadata.url,
+                            "id": getItemId(item),
+                            "uri": item.url,
                             "offsetInMilliseconds": 0,
                             "validUntil": new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                         }
