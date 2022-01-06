@@ -1,78 +1,31 @@
-const {
-    buildNotFound,
-    buildGetPlayableContentResponse,
-    buildInitiateResponse,
-    buildInternalError,
-    buildGetPreviousItem,
-    buildGetNextItem
-} = require('./builders/');
-
-const { find, findByTrackId, findByArtistAlbumTitle } = require('./persistence/')
+const ytdl = require('ytdl-core');
+const impl = require('./impl.js');
 
 exports.handler = async (event) => {
-    switch (event.header.name) {
-        case 'GetPlayableContent':
-            return handleGetPlayableContent(event);
-        case 'Initiate':
-            return handleInitiate(event);
-        case 'GetNextItem':
-            return handleGetNextItem(event);
-        case 'GetPreviousItem':
-            return buildGetPreviousItem(event);
+  const item = await impl[`call${event.header.name}`](event);
+  if (item) {
+    if ('GetPlayableContent' != event.header.name) {
+      item.url = await resolveItemUrl(item.link);
     }
-
-    return buildInternalError(event);
+    return impl[`build${event.header.name}Response`](event, item);
+  } else {
+    return buildNotFound(event);
+  }
 };
 
-
-const handleGetPlayableContent = async (event) => {
-    const attributes = event.payload.selectionCriteria.attributes;
-    const trackQuery = attributes.find(({ type }) => {
-        return type === 'TRACK';
-    });
-    const artistQuery = attributes.find(({ type }) => {
-        return type === 'ARTIST';
-    });
-
-    let item = null;
-    if (trackQuery) {
-        item = await find(trackQuery.entityId, null);
-    } else if (artistQuery) {
-        item = await find(null, artistQuery.entityId);
-    } else {
-        item = await find(null, null);
-    }
-
-    if (item) {
-        return buildGetPlayableContentResponse(event, item);
-    } else {
-        return buildNotFound(event);
-    }
-
+async function resolveItemUrl(link) {
+  const info = await ytdl.getInfo(link);
+  const audios = info.formats.filter(fmt => fmt.hasAudio && !fmt.hasVideo);
+  const biggest = audios.reduce(
+      (f0, f1) => (f0.audioBitrate > f1.audioBitrate) ? f0 : f1);
+  return biggest.url;
 }
 
-
-
-const handleInitiate = async (event) => {
-    let item = await findByArtistAlbumTitle(event.payload.contentId);
-    if (item) {
-        return buildInitiateResponse(event, item);
-    } else {
-        return buildNotFound(event);
-    }
+async function buildNotFound(event) {
+  const header = impl.buildHeader('ErrorResponse');
+  const payload = {
+    type: 'CONTENT_NOT_FOUND',
+    message: 'Requested content could not be found.',
+  };
+  return {header, payload};
 }
-
-const handleGetNextItem = async (event) => {
-    let item = await find(null, null);
-    if (item) {
-        return buildGetNextItem(event, item);
-    } else {
-        return buildNotFound(event);
-    }
-}
-
-
-
-
-
-

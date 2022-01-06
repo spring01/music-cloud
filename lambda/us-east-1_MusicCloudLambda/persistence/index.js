@@ -1,7 +1,6 @@
 const AWS = require("aws-sdk");
 const docClient = new AWS.DynamoDB.DocumentClient();
 const { promisify } = require('util');
-const ytdl = require('ytdl-core');
 
 const scanAsync = promisify(docClient.scan).bind(docClient);
 const queryAsync = promisify(docClient.query).bind(docClient);
@@ -11,18 +10,6 @@ const putAsync = promisify(docClient.put).bind(docClient);
 const { hash } = require('../utils/');
 
 module.exports = {
-    findByTrackId: async (trackId) => {
-        let response = null;
-
-        let item = await getAsync({
-            TableName: 'cloud-music',
-            Key: {
-                id: trackId
-            }
-        });
-
-        return item.Item;
-    },
     find: async (trackId, artistId) => {
         let item = null;
 
@@ -100,24 +87,6 @@ module.exports = {
                 }
             });
         }
-        return item;
-    },
-    findByArtistAlbumTitle: async (artist_album_title) => {
-        //~ const key = JSON.parse(artist_album_title);
-        //~ console.log(key);
-        //~ let response = null;
-
-        let item = await getAsync({
-            TableName: 'web-music',
-            Key: JSON.parse(artist_album_title)
-        });
-        item = item.Item;
-        const info = await ytdl.getInfo(item.link);
-        //~ console.log(info);
-        const audios = info.formats.filter(format => format.hasAudio && !format.hasVideo);
-        const biggest = audios.reduce((f0, f1) => (f0.audioBitrate > f1.audioBitrate) ? f0 : f1);
-        item.url = biggest.url;
-
         return item;
     },
 }
