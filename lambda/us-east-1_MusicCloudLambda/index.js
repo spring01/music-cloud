@@ -2,7 +2,8 @@ const ytdl = require('ytdl-core');
 const impl = require('./impl.js');
 
 exports.handler = async (event) => {
-  const item = await impl[`call${event.header.name}`](event);
+  //~ const attributes = event.payload.selectionCriteria.attributes;
+  const item = await impl.find(event);
   if (item) {
     if ('GetPlayableContent' != event.header.name) {
       item.url = await resolveItemUrl(item.link);
