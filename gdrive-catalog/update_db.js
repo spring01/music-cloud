@@ -18,7 +18,7 @@ const converter = new OpenCC('t2s.json');
 
 AWS.config.update({region: 'us-east-1'});
 const docClient = new AWS.DynamoDB.DocumentClient();
-const delimiter = ' ||| ';
+const DELIM = ' ||| ';
 
 async function main() {
   musics.map(async music => {
@@ -29,10 +29,10 @@ async function main() {
     const params = {
       TableName: 'WebMusic',
       Item: {
-        ArtistTitle: [artist, title].join(delimiter),
+        ArtistTitle: [artist, title].join(DELIM),
         Album: album,
         IsMusic: 1,
-        ArtistAlbumTitle: [artist, album, title].join(delimiter),
+        ArtistAlbumTitle: [artist, album, title].join(DELIM),
         Link: link,
       }
     };
