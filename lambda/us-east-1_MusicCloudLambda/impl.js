@@ -3,105 +3,112 @@ const { promisify } = require('util');
 const AWS = require('aws-sdk');
 const ytdl = require('./ytdl');
 
-exports.queueGetPlayableContent = async (event) => {
-  const attributes = event.payload.selectionCriteria.attributes;
-  // Entity Type 	Catalog Type
-  // TRACK 	AMAZON.MusicRecording
-  // ALBUM 	AMAZON.MusicAlbum
-  // ARTIST 	AMAZON.MusicGroup
-  // PLAYLIST 	AMAZON.MusicPlaylist
-  // GENRE 	AMAZON.Genre
-  // STATION 	AMAZON.BroadcastChannel
-  if (attributes.length == 1 && attributes[0].type == 'MEDIA_TYPE'
-      && attributes[0].value == 'TRACK') {
-    return allMusicQueue;
-  }
-  //~ var track = attributes.find(({ type }) => {
-    //~ return type === 'MEDIA_TYPE';
-  //~ });
-  //~ var track = attributes.find(({ type }) => {
-    //~ return type === 'TRACK';
-  //~ });
-  //~ var artist = attributes.find(({ type }) => {
-    //~ return type === 'ARTIST';
-  //~ });
-  //~ if (track) track = track.entityId;
-  //~ if (artist) artist = artist.entityId;
-}
-
-exports.queueInitiate = async (event) => {
-  if (event.payload.contentId === allMusicQueue.id) {
-    return allMusicQueue;
+class Handler {
+  async handle(event) {
+    const queue = await this.getQueue(event);
+    return this.buildResponse(event, queue);
   }
 }
 
-exports.queueGetNextItem = async (event) => {
-  if (event.payload.currentItemReference.queueId === allMusicQueue.id) {
-    return allMusicQueue;
+class GetPlayableContent extends Handler {
+  async getQueue(event) {
+    const attributes = event.payload.selectionCriteria.attributes;
+    // Entity Type 	Catalog Type
+    // TRACK 	AMAZON.MusicRecording
+    // ALBUM 	AMAZON.MusicAlbum
+    // ARTIST 	AMAZON.MusicGroup
+    // PLAYLIST 	AMAZON.MusicPlaylist
+    // GENRE 	AMAZON.Genre
+    // STATION 	AMAZON.BroadcastChannel
+    if (attributes.length == 1 && attributes[0].type == 'MEDIA_TYPE'
+        && attributes[0].value == 'TRACK') {
+      return allMusicQueue;
+    }
+    //~ var track = attributes.find(({ type }) => {
+      //~ return type === 'MEDIA_TYPE';
+    //~ });
+    //~ var track = attributes.find(({ type }) => {
+      //~ return type === 'TRACK';
+    //~ });
+    //~ var artist = attributes.find(({ type }) => {
+      //~ return type === 'ARTIST';
+    //~ });
+    //~ if (track) track = track.entityId;
+    //~ if (artist) artist = artist.entityId;
   }
-}
-
-exports.queueGetPreviousItem = async (event) => {
-  if (event.payload.currentItemReference.queueId === allMusicQueue.id) {
-    return allMusicQueue;
-  }
-}
-
-exports.callGetPlayableContent = async (event, queue) => {
-  const header = new Header('Alexa.Media.Search', 'GetPlayableContent.Response');
-  const payload = {
-    content: {
-      id: queue.id,
-      actions: {
-        playable: true,
-        browsable: false
-      },
-      metadata: new PlaylistMetadata(queue.name),
-    },
-  };
-  return {header, payload};
-}
-
-exports.callInitiate = async (event, queue) => {
-  const entry = await queue.getInitial();
-  const uri = await resolveLink(entry.Link);
-  const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
-  const payload = {
-    playbackMethod: {
-      type: 'ALEXA_AUDIO_PLAYER_QUEUE',
-      id: queue.id,
-      rules: {
-        feedback: {
-          type: 'PREFERENCE',
-          enabled: false
+  async buildResponse(event, queue) {
+    const header = new Header('Alexa.Media.Search', 'GetPlayableContent.Response');
+    const payload = {
+      content: {
+        id: queue.id,
+        actions: {
+          playable: true,
+          browsable: false
         },
+        metadata: new PlaylistMetadata(queue.name),
       },
-      firstItem: new Item(entry, uri),
-    },
-  };
-  return {header, payload};
+    };
+    return {header, payload};
+  }
 }
 
-exports.callGetNextItem = async (event, queue) => {
-  const entry = await queue.getNext(event.payload.currentItemReference.id);
-  const uri = await resolveLink(entry.Link);
-  const header = new Header('Alexa.Audio.PlayQueue', 'GetNextItem.Response');
-  const payload = {
-    isQueueFinished: queue.isFinished,
-    item: new Item(entry, uri),
-  };
-  return {header, payload};
+class Initiate extends Handler {
+  async getQueue(event) {
+    if (event.payload.contentId === allMusicQueue.id) {
+      return allMusicQueue;
+    }
+  }
+  async buildResponse(evnet, queue) {
+    const entry = await queue.getInitial();
+    const uri = await resolveLink(entry.Link);
+    const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
+    const payload = {
+      playbackMethod: {
+        type: 'ALEXA_AUDIO_PLAYER_QUEUE',
+        id: queue.id,
+        rules: {
+          feedback: {
+            type: 'PREFERENCE',
+            enabled: false
+          },
+        },
+        firstItem: new Item(entry, uri),
+      },
+    };
+    return {header, payload};
+  }
 }
 
-exports.callGetPreviousItem = async (event, queue) => {
-  const entry = await queue.getPrevious(event.payload.currentItemReference.id);
-  const uri = await resolveLink(entry.Link);
-  const header = new Header('Alexa.Audio.PlayQueue', 'GetPreviousItem.Response');
-  const payload = {
-    item: new Item(entry, uri),
-  };
-  return {header, payload};
+class PlayQueueHandler extends Handler {
+  async getQueue(event) {
+    if (event.payload.currentItemReference.queueId === allMusicQueue.id) {
+      return allMusicQueue;
+    }
+  }
+  async buildResponse(event, queue) {
+    const entry = await queue[this.queueGetterName](event.payload.currentItemReference.id);
+    const uri = await resolveLink(entry.Link);
+    const header = new Header('Alexa.Audio.PlayQueue', `${this.constructor.name}.Response`);
+    const payload = {
+      isQueueFinished: queue.isFinished,
+      item: new Item(entry, uri),
+    };
+    return {header, payload};
+  }
 }
+
+class GetNextItem extends PlayQueueHandler {
+  queueGetterName = 'getNext';
+}
+
+class GetPreviousItem extends PlayQueueHandler {
+  queueGetterName = 'getPrevious';
+}
+
+exports.GetPlayableContent = new GetPlayableContent();
+exports.Initiate = new Initiate();
+exports.GetNextItem = new GetNextItem();
+exports.GetPreviousItem = new GetPreviousItem();
 
 const docClient = new AWS.DynamoDB.DocumentClient();
 const db = {
