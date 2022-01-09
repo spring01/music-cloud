@@ -5,12 +5,15 @@ const ytdl = require('./ytdl');
 
 class Handler {
   async handle(event) {
+    const header = new Header(this.namespace, `${event.header.name}.Response`);
     const queue = await this.getQueue(event);
-    return this.buildResponse(event, queue);
+    const payload = await this.buildPayload(event, queue);
+    return {header, payload}
   }
 }
 
 class GetPlayableContent extends Handler {
+  namespace = 'Alexa.Media.Search';
   async getQueue(event) {
     const attributes = event.payload.selectionCriteria.attributes;
     // Entity Type 	Catalog Type
@@ -36,64 +39,41 @@ class GetPlayableContent extends Handler {
     //~ if (track) track = track.entityId;
     //~ if (artist) artist = artist.entityId;
   }
-  async buildResponse(event, queue) {
-    const header = new Header('Alexa.Media.Search', 'GetPlayableContent.Response');
-    const payload = {
-      content: {
-        id: queue.id,
-        actions: {
-          playable: true,
-          browsable: false
-        },
-        metadata: new PlaylistMetadata(queue.name),
-      },
-    };
-    return {header, payload};
+  async buildPayload(event, queue) {
+    return {content: new Content(queue)};
   }
 }
 
 class Initiate extends Handler {
+  namespace = 'Alexa.Media.Playback';
   async getQueue(event) {
     if (event.payload.contentId === allMusicQueue.id) {
       return allMusicQueue;
     }
   }
-  async buildResponse(evnet, queue) {
+  async buildPayload(event, queue) {
     const entry = await queue.getInitial();
     const uri = await resolveLink(entry.Link);
-    const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
-    const payload = {
-      playbackMethod: {
-        type: 'ALEXA_AUDIO_PLAYER_QUEUE',
-        id: queue.id,
-        rules: {
-          feedback: {
-            type: 'PREFERENCE',
-            enabled: false
-          },
-        },
-        firstItem: new Item(entry, uri),
-      },
-    };
-    return {header, payload};
+    const item = new Item(entry, uri);
+    return {playbackMethod: new PlaybackMethod(queue, item)};
   }
 }
 
 class PlayQueueHandler extends Handler {
+  namespace = 'Alexa.Audio.PlayQueue';
   async getQueue(event) {
     if (event.payload.currentItemReference.queueId === allMusicQueue.id) {
       return allMusicQueue;
     }
   }
-  async buildResponse(event, queue) {
-    const entry = await queue[this.queueGetterName](event.payload.currentItemReference.id);
+  async buildPayload(event, queue) {
+    const currentId = event.payload.currentItemReference.id;
+    const entry = await queue[this.queueGetterName](currentId);
     const uri = await resolveLink(entry.Link);
-    const header = new Header('Alexa.Audio.PlayQueue', `${this.constructor.name}.Response`);
-    const payload = {
+    return {
       isQueueFinished: queue.isFinished,
       item: new Item(entry, uri),
     };
-    return {header, payload};
   }
 }
 
@@ -131,8 +111,9 @@ class AllMusicQueue {
   }
   async getInitial() {
     const alphaBet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const randomLetter = alphaBet.charAt(Math.floor(Math.random() * alphaBet.length));
-    return this.getNext(randomLetter)
+    const randInt = Math.floor(Math.random() * alphaBet.length)
+    const randChar = alphaBet.charAt(randInt);
+    return this.getNext(randChar)
   }
   async getNext(currentId) {
     return this.queryOneEntryAsync(currentId, /*scanForward=*/true);
@@ -190,6 +171,37 @@ class Header {
     this.messageId = newId();
     this.payloadVersion = '1.0';
   }
+}
+
+class Content {
+  constructor(queue) {
+    this.id = queue.id;
+    this.actions = new ContentActions();
+    this.metadata = new PlaylistMetadata(queue.name);
+  }
+}
+
+class ContentActions {
+  playable = true;
+  browsable = false;
+}
+
+class PlaybackMethod {
+  type = 'ALEXA_AUDIO_PLAYER_QUEUE';
+  constructor(queue, firstItem) {
+    this.id = queue.id;
+    this.rules = new QueueFeedbackRule();
+    this.firstItem = firstItem;
+  }
+}
+
+class QueueFeedbackRule {
+  feedback = new Feedback();
+}
+
+class Feedback {
+  type = 'PREFERENCE';
+  enabled = false;
 }
 
 const DELIM = ' ||| ';
@@ -258,7 +270,7 @@ class Stream {
     this.id = id;
     this.uri = uri;
     this.offsetInMilliseconds = 0;
-    this.validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    this.validUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
   }
 }
 
