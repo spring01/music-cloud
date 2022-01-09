@@ -59,12 +59,12 @@ exports.callGetPlayableContent = async (event) => {
 
 exports.callInitiate = async (event) => {
   var id;
-  var item = null;
+  var entry = null;
   if (event.payload.contentId === ALL_MUSIC_QUEUE) {
     id = ALL_MUSIC_QUEUE;
     const alphaBet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const randomLetter = alphaBet.charAt(Math.floor(Math.random() * alphaBet.length));
-    var items = await queryAsync({
+    const entries = await queryAsync({
       TableName: 'WebMusic',
       IndexName: 'IsMusic-ArtistAlbumTitle-index',
       KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle > :artistAlbumTitle',
@@ -74,9 +74,9 @@ exports.callInitiate = async (event) => {
       },
       Limit: 1,
     });
-    item = items.Items[0];
-    if (!item) {
-      items = await queryAsync({
+    entry = entries.Items[0];
+    if (!entry) {
+      const entries = await queryAsync({
         TableName: 'WebMusic',
         IndexName: 'IsMusic-ArtistAlbumTitle-index',
         KeyConditionExpression: 'IsMusic = :isMusic',
@@ -85,12 +85,12 @@ exports.callInitiate = async (event) => {
         },
         Limit: 1,
       });
-      item = items.Items[0];
+      entry = entries.Items[0];
     }
   }
   const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
-  const [artist, album, title] = item.ArtistAlbumTitle.split(DELIM);
-  const uri = await resolveItemUrl(item.Link);
+  const [artist, album, title] = entry.ArtistAlbumTitle.split(DELIM);
+  const uri = await resolveLink(entry.Link);
   const payload = {
     playbackMethod: {
       type: 'ALEXA_AUDIO_PLAYER_QUEUE',
@@ -102,14 +102,14 @@ exports.callInitiate = async (event) => {
         },
       },
       firstItem: {
-        id: item.ArtistAlbumTitle,
+        id: entry.ArtistAlbumTitle,
         playbackInfo: {
           type: 'DEFAULT',
         },
         metadata: new TrackMetadata(artist, album, title),
         controls: bidirectionalControls(),
         rules: new ItemRules(),
-        stream: new Stream(item.ArtistAlbumTitle, uri),
+        stream: new Stream(entry.ArtistAlbumTitle, uri),
       },
     },
   };
@@ -118,13 +118,12 @@ exports.callInitiate = async (event) => {
 
 exports.callGetNextItem = async (event) => {
   var isQueueFinished = null;
-  var item;
+  var entry;
   const currentItemReference = event.payload.currentItemReference;
   if (currentItemReference.queueId === ALL_MUSIC_QUEUE) {
     const lastItemContentId = currentItemReference.id;  // contentId is queueId
-    var items = null;
     if (lastItemContentId) {
-      items = await queryAsync({
+      const entries = await queryAsync({
         TableName: 'WebMusic',
         IndexName: 'IsMusic-ArtistAlbumTitle-index',
         KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle > :artistAlbumTitle',
@@ -134,10 +133,10 @@ exports.callGetNextItem = async (event) => {
         },
         Limit: 1,
       });
-      item = items.Items[0];
+      entry = entries.Items[0];
     }
-    if (!item) {
-      items = await queryAsync({
+    if (!entry) {
+      const entries = await queryAsync({
         TableName: 'WebMusic',
         IndexName: 'IsMusic-ArtistAlbumTitle-index',
         KeyConditionExpression: 'IsMusic = :isMusic',
@@ -146,37 +145,36 @@ exports.callGetNextItem = async (event) => {
         },
         Limit: 1,
       });
+      entry = entries.Items[0];
     }
-    item = items.Items[0];
     isQueueFinished = false;
   }
   const header = new Header('Alexa.Audio.PlayQueue', 'GetNextItem.Response');
-  const [artist, album, title] = item.ArtistAlbumTitle.split(DELIM);
-  const uri = await resolveItemUrl(item.Link);
+  const [artist, album, title] = entry.ArtistAlbumTitle.split(DELIM);
+  const uri = await resolveLink(entry.Link);
   const payload = {
     isQueueFinished,
     item: {
-      id: item.ArtistAlbumTitle,
+      id: entry.ArtistAlbumTitle,
       playbackInfo: {
         type: 'DEFAULT',
       },
       metadata: new TrackMetadata(artist, album, title),
       controls: bidirectionalControls(),
       rules: new ItemRules(),
-      stream: new Stream(item.ArtistAlbumTitle, uri),
+      stream: new Stream(entry.ArtistAlbumTitle, uri),
     },
   };
   return {header, payload};
 }
 
 exports.callGetPreviousItem = async (event) => {
-  var item;
+  var entry = null;
   const currentItemReference = event.payload.currentItemReference;
   if (currentItemReference.queueId === ALL_MUSIC_QUEUE) {
     const currentItemContentId = currentItemReference.id;  // contentId is queueId
-    var items = null;
     if (currentItemContentId) {
-      items = await queryAsync({
+      const entries = await queryAsync({
         TableName: 'WebMusic',
         IndexName: 'IsMusic-ArtistAlbumTitle-index',
         KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle < :artistAlbumTitle',
@@ -187,10 +185,10 @@ exports.callGetPreviousItem = async (event) => {
         Limit: 1,
         ScanIndexForward: false,
       });
-      item = items.Items[0];
+      entry = entries.Items[0];
     }
-    if (!item) {
-      items = await queryAsync({
+    if (!entry) {
+      const entries = await queryAsync({
         TableName: 'WebMusic',
         IndexName: 'IsMusic-ArtistAlbumTitle-index',
         KeyConditionExpression: 'IsMusic = :isMusic',
@@ -200,28 +198,28 @@ exports.callGetPreviousItem = async (event) => {
         Limit: 1,
         ScanIndexForward: false,
       });
+      entry = entries.Items[0];
     }
-    item = items.Items[0];
   }
   const header = new Header('Alexa.Audio.PlayQueue', 'GetPreviousItem.Response');
-  const [artist, album, title] = item.ArtistAlbumTitle.split(DELIM);
-  const uri = await resolveItemUrl(item.Link);
+  const [artist, album, title] = entry.ArtistAlbumTitle.split(DELIM);
+  const uri = await resolveLink(entry.Link);
   const payload = {
     item: {
-      id: item.ArtistAlbumTitle,
+      id: entry.ArtistAlbumTitle,
       playbackInfo: {
         type: 'DEFAULT',
       },
       metadata: new TrackMetadata(artist, album, title),
       controls: bidirectionalControls(),
       rules: new ItemRules(),
-      stream: new Stream(item.ArtistAlbumTitle, uri),
+      stream: new Stream(entry.ArtistAlbumTitle, uri),
     },
   };
   return {header, payload};
 }
 
-async function resolveItemUrl(link) {
+async function resolveLink(link) {
   const info = await ytdl.getInfo(link);
   const audios = info.formats.filter(fmt => fmt.hasAudio && !fmt.hasVideo);
   const biggest = audios.reduce(
@@ -235,15 +233,6 @@ function hash(value) {
 
 function newId() {
   return hash(new Date().toISOString());
-}
-
-function buildHeader(name, namespace = 'Alexa.Media') {
-  return {
-    namespace,
-    name,
-    messageId: newId(),
-    payloadVersion: '1.0',
-  };
 }
 
 class Header {
