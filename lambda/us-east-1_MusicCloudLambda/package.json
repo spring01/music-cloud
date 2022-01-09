@@ -6,10 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Andrei Ciobanu",
-  "license": "ISC",
+  "author": "HC",
+  "license": "Apache 2.0",
   "dependencies": {
-    "ytdl-core": "^4.9.2"
+    "ytdl-core": "4.9.2"
   },
   "devDependencies": {
     "aws-sdk": "^2.547.0"

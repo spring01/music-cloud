@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { promisify } = require('util');
 const AWS = require('aws-sdk');
-const ytdl = require('ytdl-core');
+const ytdl = require('./ytdl');
 
 const docClient = new AWS.DynamoDB.DocumentClient();
 const scanAsync = promisify(docClient.scan).bind(docClient);
