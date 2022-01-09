@@ -169,6 +169,58 @@ exports.callGetNextItem = async (event) => {
   return {header, payload};
 }
 
+exports.callGetPreviousItem = async (event) => {
+  var item;
+  const currentItemReference = event.payload.currentItemReference;
+  if (currentItemReference.queueId === ALL_MUSIC_QUEUE) {
+    const currentItemContentId = currentItemReference.id;  // contentId is queueId
+    var items = null;
+    if (currentItemContentId) {
+      items = await queryAsync({
+        TableName: 'WebMusic',
+        IndexName: 'IsMusic-ArtistAlbumTitle-index',
+        KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle < :artistAlbumTitle',
+        ExpressionAttributeValues: {
+          ':isMusic': 1,
+          ':artistAlbumTitle': currentItemContentId,
+        },
+        Limit: 1,
+        ScanIndexForward: false,
+      });
+      item = items.Items[0];
+    }
+    if (!item) {
+      items = await queryAsync({
+        TableName: 'WebMusic',
+        IndexName: 'IsMusic-ArtistAlbumTitle-index',
+        KeyConditionExpression: 'IsMusic = :isMusic',
+        ExpressionAttributeValues: {
+          ':isMusic': 1,
+        },
+        Limit: 1,
+        ScanIndexForward: false,
+      });
+    }
+    item = items.Items[0];
+  }
+  const header = buildHeader('GetPreviousItem.Response', 'Alexa.Audio.PlayQueue');
+  const [artist, album, title] = item.ArtistAlbumTitle.split(DELIM);
+  const uri = await resolveItemUrl(item.Link);
+  const payload = {
+    item: {
+      id: item.ArtistAlbumTitle,
+      playbackInfo: {
+        type: 'DEFAULT',
+      },
+      metadata: new TrackMetadata(artist, album, title),
+      controls: buildControls(),
+      rules: buildItemRules(),
+      stream: new Stream(item.ArtistAlbumTitle, uri),
+    },
+  };
+  return {header, payload};
+}
+
 async function resolveItemUrl(link) {
   const info = await ytdl.getInfo(link);
   const audios = info.formats.filter(fmt => fmt.hasAudio && !fmt.hasVideo);
@@ -267,7 +319,7 @@ function buildControls() {
     {
       "type": "COMMAND",
       "name": "PREVIOUS",
-      "enabled": false,
+      "enabled": true,
     }
   ];
 }

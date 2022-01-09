@@ -111,6 +111,55 @@ async function test() {
     //~ ':artistAlbumTitle': '周杰伦 ||| 八度空间 ||| 火车叨位去',
     //~ ':artistAlbumTitle': '周杰伦 ||| 叶惠美 ||| 她的睫毛',
 
+    doc_previous0 = {
+      "header": {
+        "namespace": "Alexa.Audio.PlayQueue",
+        "name": "GetPreviousItem",
+        "messageId": "[MESSAGE_ID]",
+        "payloadVersion": "1.0"
+      },
+      "payload": {
+        "requestContext": {
+          "user": {
+            "id": "amzn1.ask.account.AGF3NETIE4MNXNG2Z64Z27RXB6JCK2R62BCPYUZI",
+            "accessToken": "e72e16c7e42f292c6912e7710c838347ae178b4a"
+          },
+          "location": {
+            "originatingLocale": "en-US"
+          }
+        },
+        "currentItemReference": {
+          "id": "周杰伦 ||| 叶惠美 ||| 她的睫毛",
+          "queueId": "Playlist.AllMusic",
+          "contentId": "Playlist.AllMusic"
+        }
+      }
+    };
+    doc_previous1 = {
+      "header": {
+        "namespace": "Alexa.Audio.PlayQueue",
+        "name": "GetPreviousItem",
+        "messageId": "[MESSAGE_ID]",
+        "payloadVersion": "1.0"
+      },
+      "payload": {
+        "requestContext": {
+          "user": {
+            "id": "amzn1.ask.account.AGF3NETIE4MNXNG2Z64Z27RXB6JCK2R62BCPYUZI",
+            "accessToken": "e72e16c7e42f292c6912e7710c838347ae178b4a"
+          },
+          "location": {
+            "originatingLocale": "en-US"
+          }
+        },
+        "currentItemReference": {
+          "id": "Avril Lavigne ||| Let Go ||| Complicated",
+          "queueId": "Playlist.AllMusic",
+          "contentId": "Playlist.AllMusic"
+        }
+      }
+    };
+
     real_get0 = {
         "header": {
             "messageId": "dgGHdJXCM2FItd7ovaSEfoOlW",
@@ -204,9 +253,10 @@ async function test() {
         }
     }
 
-    result = await index.handler(real_get0);
+    //~ result = await index.handler(real_get0);
     //~ result = await index.handler(real_init0);
     //~ result = await index.handler(real_next0);
+    result = await index.handler(doc_previous1);
     //~ console.log(JSON.stringify(result, null, 2));
 }
 
