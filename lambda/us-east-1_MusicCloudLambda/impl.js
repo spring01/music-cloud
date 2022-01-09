@@ -88,9 +88,8 @@ exports.callInitiate = async (event) => {
       entry = entries.Items[0];
     }
   }
-  const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
-  const [artist, album, title] = entry.ArtistAlbumTitle.split(DELIM);
   const uri = await resolveLink(entry.Link);
+  const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
   const payload = {
     playbackMethod: {
       type: 'ALEXA_AUDIO_PLAYER_QUEUE',
@@ -101,16 +100,7 @@ exports.callInitiate = async (event) => {
           enabled: false
         },
       },
-      firstItem: {
-        id: entry.ArtistAlbumTitle,
-        playbackInfo: {
-          type: 'DEFAULT',
-        },
-        metadata: new TrackMetadata(artist, album, title),
-        controls: bidirectionalControls(),
-        rules: new ItemRules(),
-        stream: new Stream(entry.ArtistAlbumTitle, uri),
-      },
+      firstItem: new Item(entry, uri),
     },
   };
   return {header, payload};
@@ -149,21 +139,11 @@ exports.callGetNextItem = async (event) => {
     }
     isQueueFinished = false;
   }
-  const header = new Header('Alexa.Audio.PlayQueue', 'GetNextItem.Response');
-  const [artist, album, title] = entry.ArtistAlbumTitle.split(DELIM);
   const uri = await resolveLink(entry.Link);
+  const header = new Header('Alexa.Audio.PlayQueue', 'GetNextItem.Response');
   const payload = {
     isQueueFinished,
-    item: {
-      id: entry.ArtistAlbumTitle,
-      playbackInfo: {
-        type: 'DEFAULT',
-      },
-      metadata: new TrackMetadata(artist, album, title),
-      controls: bidirectionalControls(),
-      rules: new ItemRules(),
-      stream: new Stream(entry.ArtistAlbumTitle, uri),
-    },
+    item: new Item(entry, uri),
   };
   return {header, payload};
 }
@@ -201,20 +181,10 @@ exports.callGetPreviousItem = async (event) => {
       entry = entries.Items[0];
     }
   }
-  const header = new Header('Alexa.Audio.PlayQueue', 'GetPreviousItem.Response');
-  const [artist, album, title] = entry.ArtistAlbumTitle.split(DELIM);
   const uri = await resolveLink(entry.Link);
+  const header = new Header('Alexa.Audio.PlayQueue', 'GetPreviousItem.Response');
   const payload = {
-    item: {
-      id: entry.ArtistAlbumTitle,
-      playbackInfo: {
-        type: 'DEFAULT',
-      },
-      metadata: new TrackMetadata(artist, album, title),
-      controls: bidirectionalControls(),
-      rules: new ItemRules(),
-      stream: new Stream(entry.ArtistAlbumTitle, uri),
-    },
+    item: new Item(entry, uri),
   };
   return {header, payload};
 }
@@ -242,6 +212,22 @@ class Header {
     this.messageId = newId();
     this.payloadVersion = '1.0';
   }
+}
+
+class Item {
+  constructor(entry, uri) {
+    const [artist, album, title] = entry.ArtistAlbumTitle.split(DELIM);
+    this.id = entry.ArtistAlbumTitle;
+    this.playbackInfo = new PlaybackInfo();
+    this.metadata = new TrackMetadata(artist, album, title);
+    this.controls = bidirectionalControls();
+    this.rules = new ItemRules();
+    this.stream = new Stream(entry.ArtistAlbumTitle, uri);
+  }
+}
+
+class PlaybackInfo {
+  type = 'DEFAULT';
 }
 
 class SpeechInfo {
