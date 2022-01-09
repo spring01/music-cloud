@@ -94,7 +94,7 @@ exports.callGetNextItem = async (event, queue) => {
 }
 
 exports.callGetPreviousItem = async (event, queue) => {
-  const entry = await queue.getNext(event.payload.currentItemReference.id);
+  const entry = await queue.getPrevious(event.payload.currentItemReference.id);
   const uri = await resolveLink(entry.Link);
   const header = new Header('Alexa.Audio.PlayQueue', 'GetPreviousItem.Response');
   const payload = {
@@ -130,54 +130,40 @@ class AllMusicQueue {
   async getNext(currentId) {
     var entry = null;
     if (currentId) {
-      entry = await db.queryOneEntryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle > :artistAlbumTitle',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-          ':artistAlbumTitle': currentId,
-        },
-      });
+      entry = await this.queryOneEntryAsync(currentId);
     }
     if (!entry) {
-      entry = await db.queryOneEntryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-        },
-      });
+      entry = await this.queryOneEntryAsync();
     }
     return entry;
   }
   async getPrevious(currentId) {
     var entry = null;
     if (currentId) {
-      entry = await db.queryOneEntryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle < :artistAlbumTitle',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-          ':artistAlbumTitle': currentId,
-        },
-        ScanIndexForward: false,
-      });
+      entry = await this.queryOneEntryAsync(currentId, false);
     }
     if (!entry) {
-      entry = await db.queryOneEntryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-        },
-        ScanIndexForward: false,
-      });
+      entry = await this.queryOneEntryAsync(null, false);
     }
     return entry;
+  }
+  async queryOneEntryAsync(currentId = null, scanForward = true) {
+    var expr = 'IsMusic = :isMusic';
+    var attr = {
+      ':isMusic': 1,
+    };
+    if (currentId) {
+      const direction = scanForward ? '>' : '<';
+      expr = `${expr} and ArtistAlbumTitle ${direction} :currentId`;
+      attr[':currentId'] = currentId;
+    }
+    return db.queryOneEntryAsync({
+      TableName: 'WebMusic',
+      IndexName: 'IsMusic-ArtistAlbumTitle-index',
+      KeyConditionExpression: expr,
+      ExpressionAttributeValues: attr,
+      ScanIndexForward: scanForward,
+    });
   }
 }
 
