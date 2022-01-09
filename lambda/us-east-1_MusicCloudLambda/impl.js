@@ -3,16 +3,7 @@ const { promisify } = require('util');
 const AWS = require('aws-sdk');
 const ytdl = require('./ytdl');
 
-const docClient = new AWS.DynamoDB.DocumentClient();
-const scanAsync = promisify(docClient.scan).bind(docClient);
-const queryAsync = promisify(docClient.query).bind(docClient);
-const getAsync = promisify(docClient.get).bind(docClient);
-const putAsync = promisify(docClient.put).bind(docClient);
-
-const ALL_MUSIC_QUEUE = 'Playlist.AllMusic';
-const DELIM = ' ||| ';
-
-exports.callGetPlayableContent = async (event) => {
+exports.queueGetPlayableContent = async (event) => {
   const attributes = event.payload.selectionCriteria.attributes;
   // Entity Type 	Catalog Type
   // TRACK 	AMAZON.MusicRecording
@@ -21,26 +12,10 @@ exports.callGetPlayableContent = async (event) => {
   // PLAYLIST 	AMAZON.MusicPlaylist
   // GENRE 	AMAZON.Genre
   // STATION 	AMAZON.BroadcastChannel
-  const header = new Header('Alexa.Media.Search', 'GetPlayableContent.Response');
-  var id;
-  var speechText;
-  console.log(attributes);
   if (attributes.length == 1 && attributes[0].type == 'MEDIA_TYPE'
       && attributes[0].value == 'TRACK') {
-    id = ALL_MUSIC_QUEUE;
-    speechText = 'All music';
+    return allMusicQueue;
   }
-  const payload = {
-    content: {
-      id,
-      actions: {
-        playable: true,
-        browsable: false
-      },
-      metadata: new PlaylistMetadata(speechText),
-    },
-  };
-  return {header, payload};
   //~ var track = attributes.find(({ type }) => {
     //~ return type === 'MEDIA_TYPE';
   //~ });
@@ -52,48 +27,49 @@ exports.callGetPlayableContent = async (event) => {
   //~ });
   //~ if (track) track = track.entityId;
   //~ if (artist) artist = artist.entityId;
-  //~ console.log('track=', track);
-  //~ console.log('artist=', artist);
-  //~ return await find(event);
 }
 
-exports.callInitiate = async (event) => {
-  var id;
-  var entry = null;
-  if (event.payload.contentId === ALL_MUSIC_QUEUE) {
-    id = ALL_MUSIC_QUEUE;
-    const alphaBet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const randomLetter = alphaBet.charAt(Math.floor(Math.random() * alphaBet.length));
-    const entries = await queryAsync({
-      TableName: 'WebMusic',
-      IndexName: 'IsMusic-ArtistAlbumTitle-index',
-      KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle > :artistAlbumTitle',
-      ExpressionAttributeValues: {
-        ':isMusic': 1,
-        ':artistAlbumTitle': randomLetter,
-      },
-      Limit: 1,
-    });
-    entry = entries.Items[0];
-    if (!entry) {
-      const entries = await queryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-        },
-        Limit: 1,
-      });
-      entry = entries.Items[0];
-    }
+exports.queueInitiate = async (event) => {
+  if (event.payload.contentId === allMusicQueue.id) {
+    return allMusicQueue;
   }
+}
+
+exports.queueGetNextItem = async (event) => {
+  if (event.payload.currentItemReference.queueId === allMusicQueue.id) {
+    return allMusicQueue;
+  }
+}
+
+exports.queueGetPreviousItem = async (event) => {
+  if (event.payload.currentItemReference.queueId === allMusicQueue.id) {
+    return allMusicQueue;
+  }
+}
+
+exports.callGetPlayableContent = async (event, queue) => {
+  const header = new Header('Alexa.Media.Search', 'GetPlayableContent.Response');
+  const payload = {
+    content: {
+      id: queue.id,
+      actions: {
+        playable: true,
+        browsable: false
+      },
+      metadata: new PlaylistMetadata(queue.name),
+    },
+  };
+  return {header, payload};
+}
+
+exports.callInitiate = async (event, queue) => {
+  const entry = await queue.getInitial();
   const uri = await resolveLink(entry.Link);
   const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
   const payload = {
     playbackMethod: {
       type: 'ALEXA_AUDIO_PLAYER_QUEUE',
-      id,
+      id: queue.id,
       rules: {
         feedback: {
           type: 'PREFERENCE',
@@ -106,81 +82,19 @@ exports.callInitiate = async (event) => {
   return {header, payload};
 }
 
-exports.callGetNextItem = async (event) => {
-  var isQueueFinished = null;
-  var entry;
-  const currentItemReference = event.payload.currentItemReference;
-  if (currentItemReference.queueId === ALL_MUSIC_QUEUE) {
-    const lastItemContentId = currentItemReference.id;  // contentId is queueId
-    if (lastItemContentId) {
-      const entries = await queryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle > :artistAlbumTitle',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-          ':artistAlbumTitle': lastItemContentId,
-        },
-        Limit: 1,
-      });
-      entry = entries.Items[0];
-    }
-    if (!entry) {
-      const entries = await queryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-        },
-        Limit: 1,
-      });
-      entry = entries.Items[0];
-    }
-    isQueueFinished = false;
-  }
+exports.callGetNextItem = async (event, queue) => {
+  const entry = await queue.getNext(event.payload.currentItemReference.id);
   const uri = await resolveLink(entry.Link);
   const header = new Header('Alexa.Audio.PlayQueue', 'GetNextItem.Response');
   const payload = {
-    isQueueFinished,
+    isQueueFinished: queue.isFinished,
     item: new Item(entry, uri),
   };
   return {header, payload};
 }
 
-exports.callGetPreviousItem = async (event) => {
-  var entry = null;
-  const currentItemReference = event.payload.currentItemReference;
-  if (currentItemReference.queueId === ALL_MUSIC_QUEUE) {
-    const currentItemContentId = currentItemReference.id;  // contentId is queueId
-    if (currentItemContentId) {
-      const entries = await queryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle < :artistAlbumTitle',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-          ':artistAlbumTitle': currentItemContentId,
-        },
-        Limit: 1,
-        ScanIndexForward: false,
-      });
-      entry = entries.Items[0];
-    }
-    if (!entry) {
-      const entries = await queryAsync({
-        TableName: 'WebMusic',
-        IndexName: 'IsMusic-ArtistAlbumTitle-index',
-        KeyConditionExpression: 'IsMusic = :isMusic',
-        ExpressionAttributeValues: {
-          ':isMusic': 1,
-        },
-        Limit: 1,
-        ScanIndexForward: false,
-      });
-      entry = entries.Items[0];
-    }
-  }
+exports.callGetPreviousItem = async (event, queue) => {
+  const entry = await queue.getNext(event.payload.currentItemReference.id);
   const uri = await resolveLink(entry.Link);
   const header = new Header('Alexa.Audio.PlayQueue', 'GetPreviousItem.Response');
   const payload = {
@@ -188,6 +102,86 @@ exports.callGetPreviousItem = async (event) => {
   };
   return {header, payload};
 }
+
+const docClient = new AWS.DynamoDB.DocumentClient();
+const db = {
+  scanAsync: promisify(docClient.scan).bind(docClient),
+  queryAsync: promisify(docClient.query).bind(docClient),
+  getAsync: promisify(docClient.get).bind(docClient),
+  putAsync: promisify(docClient.put).bind(docClient),
+  queryOneEntryAsync : async (params) => {
+    params.Limit = 1;
+    const entries = await db.queryAsync(params);
+    return entries.Items[0];
+  },
+}
+
+class AllMusicQueue {
+  constructor() {
+    this.id = 'Playlist.AllMusic';
+    this.name = 'All music';
+    this.isFinished = false;  // Wraps around both ways and never finishes.
+  }
+  async getInitial() {
+    const alphaBet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const randomLetter = alphaBet.charAt(Math.floor(Math.random() * alphaBet.length));
+    return this.getNext(randomLetter)
+  }
+  async getNext(currentId) {
+    var entry = null;
+    if (currentId) {
+      entry = await db.queryOneEntryAsync({
+        TableName: 'WebMusic',
+        IndexName: 'IsMusic-ArtistAlbumTitle-index',
+        KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle > :artistAlbumTitle',
+        ExpressionAttributeValues: {
+          ':isMusic': 1,
+          ':artistAlbumTitle': currentId,
+        },
+      });
+    }
+    if (!entry) {
+      entry = await db.queryOneEntryAsync({
+        TableName: 'WebMusic',
+        IndexName: 'IsMusic-ArtistAlbumTitle-index',
+        KeyConditionExpression: 'IsMusic = :isMusic',
+        ExpressionAttributeValues: {
+          ':isMusic': 1,
+        },
+      });
+    }
+    return entry;
+  }
+  async getPrevious(currentId) {
+    var entry = null;
+    if (currentId) {
+      entry = await db.queryOneEntryAsync({
+        TableName: 'WebMusic',
+        IndexName: 'IsMusic-ArtistAlbumTitle-index',
+        KeyConditionExpression: 'IsMusic = :isMusic and ArtistAlbumTitle < :artistAlbumTitle',
+        ExpressionAttributeValues: {
+          ':isMusic': 1,
+          ':artistAlbumTitle': currentId,
+        },
+        ScanIndexForward: false,
+      });
+    }
+    if (!entry) {
+      entry = await db.queryOneEntryAsync({
+        TableName: 'WebMusic',
+        IndexName: 'IsMusic-ArtistAlbumTitle-index',
+        KeyConditionExpression: 'IsMusic = :isMusic',
+        ExpressionAttributeValues: {
+          ':isMusic': 1,
+        },
+        ScanIndexForward: false,
+      });
+    }
+    return entry;
+  }
+}
+
+const allMusicQueue = new AllMusicQueue();
 
 async function resolveLink(link) {
   const info = await ytdl.getInfo(link);
@@ -213,6 +207,8 @@ class Header {
     this.payloadVersion = '1.0';
   }
 }
+
+const DELIM = ' ||| ';
 
 class Item {
   constructor(entry, uri) {
