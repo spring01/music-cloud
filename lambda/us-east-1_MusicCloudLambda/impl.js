@@ -21,7 +21,7 @@ exports.callGetPlayableContent = async (event) => {
   // PLAYLIST 	AMAZON.MusicPlaylist
   // GENRE 	AMAZON.Genre
   // STATION 	AMAZON.BroadcastChannel
-  const header = buildHeader('GetPlayableContent.Response', 'Alexa.Media.Search');
+  const header = new Header('Alexa.Media.Search', 'GetPlayableContent.Response');
   var id;
   var speechText;
   console.log(attributes);
@@ -88,7 +88,7 @@ exports.callInitiate = async (event) => {
       item = items.Items[0];
     }
   }
-  const header = buildHeader('Initiate.Response', 'Alexa.Media.Playback');
+  const header = new Header('Alexa.Media.Playback', 'Initiate.Response');
   const [artist, album, title] = item.ArtistAlbumTitle.split(DELIM);
   const uri = await resolveItemUrl(item.Link);
   const payload = {
@@ -107,8 +107,8 @@ exports.callInitiate = async (event) => {
           type: 'DEFAULT',
         },
         metadata: new TrackMetadata(artist, album, title),
-        controls: buildControls(),
-        rules: buildItemRules(),
+        controls: bidirectionalControls(),
+        rules: new ItemRules(),
         stream: new Stream(item.ArtistAlbumTitle, uri),
       },
     },
@@ -150,7 +150,7 @@ exports.callGetNextItem = async (event) => {
     item = items.Items[0];
     isQueueFinished = false;
   }
-  const header = buildHeader('GetNextItem.Response', 'Alexa.Audio.PlayQueue');
+  const header = new Header('Alexa.Audio.PlayQueue', 'GetNextItem.Response');
   const [artist, album, title] = item.ArtistAlbumTitle.split(DELIM);
   const uri = await resolveItemUrl(item.Link);
   const payload = {
@@ -161,8 +161,8 @@ exports.callGetNextItem = async (event) => {
         type: 'DEFAULT',
       },
       metadata: new TrackMetadata(artist, album, title),
-      controls: buildControls(),
-      rules: buildItemRules(),
+      controls: bidirectionalControls(),
+      rules: new ItemRules(),
       stream: new Stream(item.ArtistAlbumTitle, uri),
     },
   };
@@ -203,7 +203,7 @@ exports.callGetPreviousItem = async (event) => {
     }
     item = items.Items[0];
   }
-  const header = buildHeader('GetPreviousItem.Response', 'Alexa.Audio.PlayQueue');
+  const header = new Header('Alexa.Audio.PlayQueue', 'GetPreviousItem.Response');
   const [artist, album, title] = item.ArtistAlbumTitle.split(DELIM);
   const uri = await resolveItemUrl(item.Link);
   const payload = {
@@ -213,8 +213,8 @@ exports.callGetPreviousItem = async (event) => {
         type: 'DEFAULT',
       },
       metadata: new TrackMetadata(artist, album, title),
-      controls: buildControls(),
-      rules: buildItemRules(),
+      controls: bidirectionalControls(),
+      rules: new ItemRules(),
       stream: new Stream(item.ArtistAlbumTitle, uri),
     },
   };
@@ -229,23 +229,12 @@ async function resolveItemUrl(link) {
   return biggest.url;
 }
 
-function firstCharAsInt(id) {
-  const start = Buffer.from(id.charAt(0), 'utf-8');
-  return parseInt(start.toString('hex'), 16);
-}
-
 function hash(value) {
   return crypto.createHash('sha1').update(value).digest('base64');
 }
 
 function newId() {
   return hash(new Date().toISOString());
-}
-
-function getItemId(item) {
-  const artist = item.artist;
-  const album_title = item.album_title;
-  return JSON.stringify({artist, album_title});
 }
 
 function buildHeader(name, namespace = 'Alexa.Media') {
@@ -255,6 +244,15 @@ function buildHeader(name, namespace = 'Alexa.Media') {
     messageId: newId(),
     payloadVersion: '1.0',
   };
+}
+
+class Header {
+  constructor(namespace, name) {
+    this.namespace = namespace;
+    this.name = name;
+    this.messageId = newId();
+    this.payloadVersion = '1.0';
+  }
 }
 
 class SpeechInfo {
@@ -309,50 +307,18 @@ class Stream {
   }
 }
 
-function buildControls() {
-  return [
-    {
-      "type": "COMMAND",
-      "name": "NEXT",
-      "enabled": true,
-    },
-    {
-      "type": "COMMAND",
-      "name": "PREVIOUS",
-      "enabled": true,
-    }
-  ];
+class ItemControl {
+  type = 'COMMAND';
+  enabled = true;
+  constructor(name) {
+    this.name = name;
+  }
 }
 
-function buildItemRules() {
-  return {
-    "feedbackEnabled": false,
-  };
+function bidirectionalControls() {
+  return [new ItemControl('NEXT'), new ItemControl('PREVIOUS')];
 }
 
-async function buildNotFound(event) {
-  const header = buildHeader('ErrorResponse');
-  const payload = {
-    type: 'CONTENT_NOT_FOUND',
-    message: 'Requested content could not be found.',
-  };
-  return {header, payload};
-}
-
-async function buildInternalError(event) {
-  const header = buildHeader('ErrorResponse', 'Alexa.Audio');
-  const payload = {
-    "type": "INTERNAL_ERROR",
-    "message": "Unknown error"
-  };
-  return {header, payload};
-}
-
-async function buildGetPreviousItem(event) {
-  const header = buildHeader('ErrorResponse', 'Alexa.Audio');
-  const payload = {
-    "type": "ITEM_NOT_FOUND",
-    "message": "There is no previous item."
-  };
-  return {header, payload};
+class ItemRules {
+  feedbackEnabled = false;
 }
