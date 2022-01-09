@@ -134,20 +134,15 @@ class AllMusicQueue {
     return this.queryOneEntryAsync(currentId, /*scanForward=*/false);
   }
   async queryOneEntryAsync(currentId, scanForward = true) {
-    var entry = null;
     if (currentId) {
-      entry = await this.queryOneEntryAsyncImpl(currentId, scanForward);
+      const entry = await this.queryOneEntryAsyncImpl(currentId, scanForward);
+      if (entry) return entry;
     }
-    if (!entry) {
-      entry = await this.queryOneEntryAsyncImpl(null, scanForward);
-    }
-    return entry;
+    return this.queryOneEntryAsyncImpl(null, scanForward);
   }
   async queryOneEntryAsyncImpl(currentId = null, scanForward = true) {
     var expr = 'IsMusic = :isMusic';
-    var attr = {
-      ':isMusic': 1,
-    };
+    var attr = {':isMusic': 1};
     if (currentId) {
       const direction = scanForward ? '>' : '<';
       expr = `${expr} and ArtistAlbumTitle ${direction} :currentId`;
