@@ -128,26 +128,22 @@ class AllMusicQueue {
     return this.getNext(randomLetter)
   }
   async getNext(currentId) {
-    var entry = null;
-    if (currentId) {
-      entry = await this.queryOneEntryAsync(currentId);
-    }
-    if (!entry) {
-      entry = await this.queryOneEntryAsync();
-    }
-    return entry;
+    return this.queryOneEntryAsync(currentId, /*scanForward=*/true);
   }
   async getPrevious(currentId) {
+    return this.queryOneEntryAsync(currentId, /*scanForward=*/false);
+  }
+  async queryOneEntryAsync(currentId, scanForward = true) {
     var entry = null;
     if (currentId) {
-      entry = await this.queryOneEntryAsync(currentId, false);
+      entry = await this.queryOneEntryAsyncImpl(currentId, scanForward);
     }
     if (!entry) {
-      entry = await this.queryOneEntryAsync(null, false);
+      entry = await this.queryOneEntryAsyncImpl(null, scanForward);
     }
     return entry;
   }
-  async queryOneEntryAsync(currentId = null, scanForward = true) {
+  async queryOneEntryAsyncImpl(currentId = null, scanForward = true) {
     var expr = 'IsMusic = :isMusic';
     var attr = {
       ':isMusic': 1,
